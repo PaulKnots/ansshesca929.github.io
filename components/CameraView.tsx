@@ -19,13 +19,11 @@ const CameraView: React.FC<CameraViewProps> = ({ onScan, isLoading, error }) => 
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCvReady, setIsCvReady] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>('Initializing Camera...');
-  const stableDetectionCount = useRef(0);
 
   useEffect(() => {
     const checkCv = () => {
       if (typeof cv !== 'undefined' && cv.Mat) {
         setIsCvReady(true);
-        setStatusMessage('Looking for answer sheet...');
       } else {
         setTimeout(checkCv, 100);
       }
@@ -44,8 +42,9 @@ const CameraView: React.FC<CameraViewProps> = ({ onScan, isLoading, error }) => 
   }, []);
   
   const handleCapture = useCallback(() => {
-    if (videoRef.current && canvasRef.current) {
+    if (videoRef.current && canvasRef.current && !isLoading) {
       stopAllStreams();
+      setStatusMessage('Captured! Analyzing...');
       const video = videoRef.current;
       const canvas = canvasRef.current;
       canvas.width = video.videoWidth;
@@ -57,7 +56,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onScan, isLoading, error }) => 
         onScan(dataUrl);
       }
     }
-  }, [onScan, stopAllStreams]);
+  }, [isLoading, onScan, stopAllStreams]);
 
 
   const processVideo = useCallback(() => {
@@ -101,6 +100,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onScan, isLoading, error }) => 
     for (let i = 0; i < contours.size(); ++i) {
         const cnt = contours.get(i);
         const area = cv.contourArea(cnt);
+        // Relaxed the area check to make the guide appear more readily
         if (area > maxArea) {
             const peri = cv.arcLength(cnt, true);
             const approx = new cv.Mat();
@@ -115,8 +115,10 @@ const CameraView: React.FC<CameraViewProps> = ({ onScan, isLoading, error }) => 
     }
 
     context.clearRect(0, 0, overlay.width, overlay.height);
-
-    if (screenCnt && maxArea > 40000) { // Min area threshold
+    
+    // The overlay is now just a visual guide. It does not block capturing.
+    if (screenCnt && maxArea > 20000) { // Lowered threshold for guide to appear
+      setStatusMessage('Paper detected. Align and press capture.');
       context.strokeStyle = 'rgba(74, 222, 128, 0.9)'; // Green
       context.lineWidth = 4;
       context.beginPath();
@@ -130,24 +132,15 @@ const CameraView: React.FC<CameraViewProps> = ({ onScan, isLoading, error }) => 
       }
       context.closePath();
       context.stroke();
-      
-      stableDetectionCount.current++;
-      if(stableDetectionCount.current > 15) { // Auto-capture after ~15 stable frames
-        setStatusMessage('Captured! Analyzing...');
-        handleCapture();
-      } else {
-        setStatusMessage('Hold steady...');
-      }
     } else {
-      stableDetectionCount.current = 0;
-      setStatusMessage('Looking for answer sheet...');
+      setStatusMessage('Point camera at the answer sheet.');
     }
 
     src.delete(); gray.delete(); blurred.delete(); edged.delete(); contours.delete(); hierarchy.delete();
     if(screenCnt) screenCnt.delete();
 
     animationFrameRef.current = requestAnimationFrame(processVideo);
-  }, [isCvReady, isLoading, handleCapture]);
+  }, [isCvReady, isLoading]);
 
 
   useEffect(() => {
@@ -217,10 +210,10 @@ const CameraView: React.FC<CameraViewProps> = ({ onScan, isLoading, error }) => 
         className="mt-6 px-8 py-4 bg-blue-600 text-white font-bold text-lg rounded-full shadow-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center space-x-3 transition-transform transform hover:scale-105"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2-2H5a2 2 0 01-2-2V9z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
-        <span>Manual Capture</span>
+        <span>Capture Image</span>
       </button>
       <canvas ref={canvasRef} className="hidden"></canvas>
     </div>
