@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Page, AnswerKey, StudentAnswers, ScanResult } from './types';
 import AnswerKeyForm from './components/AnswerKeyForm';
@@ -21,6 +20,7 @@ const App: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem('answerKey', JSON.stringify(answerKey));
@@ -35,12 +35,14 @@ const App: React.FC = () => {
     setCurrentPage(Page.SCANNING);
   };
 
-  const handleScan = async (imageData: string) => {
+  const handleScan = async (dataUrl: string) => {
     setIsLoading(true);
     setError(null);
     setStudentAnswers(null);
+    setCapturedImage(dataUrl);
     try {
-      const answers = await gradeSheet(imageData);
+      const base64Data = dataUrl.split(',')[1];
+      const answers = await gradeSheet(base64Data);
       setStudentAnswers(answers);
       setCurrentPage(Page.RESULTS);
     } catch (err) {
@@ -58,6 +60,7 @@ const App: React.FC = () => {
   
   const handleScanNext = () => {
     setStudentAnswers(null);
+    setCapturedImage(null);
     setCurrentPage(Page.SCANNING);
   };
 
@@ -78,6 +81,7 @@ const App: React.FC = () => {
             <ResultsDisplay 
               studentAnswers={studentAnswers} 
               answerKey={answerKey} 
+              capturedImage={capturedImage}
               onSave={handleSaveResult}
               onScanNext={handleScanNext}
             />

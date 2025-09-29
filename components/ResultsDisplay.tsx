@@ -5,11 +5,12 @@ import { TOTAL_QUESTIONS, QUESTIONS_PER_COLUMN } from '../constants';
 interface ResultsDisplayProps {
   studentAnswers: StudentAnswers;
   answerKey: AnswerKey;
+  capturedImage: string | null;
   onSave: (result: ScanResult) => void;
   onScanNext: () => void;
 }
 
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerKey, onSave, onScanNext }) => {
+const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerKey, capturedImage, onSave, onScanNext }) => {
   let score = 0;
   for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
     const qNum = i.toString();
@@ -18,11 +19,9 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerK
     }
   }
 
-  // FIX: Moved `totalAnswered` before `percentage` to fix a 'used before declaration' error.
   const totalAnswered = Object.keys(answerKey).filter(k => answerKey[k]).length;
   const percentage = totalAnswered > 0 ? ((score / totalAnswered) * 100).toFixed(1) : 0;
   
-
   const handleSave = () => {
     const result: ScanResult = {
       id: new Date().toISOString(),
@@ -65,23 +64,49 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerK
     <div className="bg-white p-6 rounded-xl shadow-lg animate-fade-in">
         <div className="text-center mb-6 border-b pb-4">
             <h2 className="text-3xl font-bold text-gray-800">Scan Results</h2>
-            <div className="mt-4 flex justify-center items-baseline space-x-4">
-                <p className="text-5xl font-bold text-blue-600">{score}<span className="text-3xl text-gray-500">/{totalAnswered}</span></p>
-                <p className="text-2xl font-semibold text-gray-600">({percentage}%)</p>
-            </div>
         </div>
-        
-        <div className="my-6">
-            <h3 className="text-lg font-semibold text-gray-700 mb-3 text-center">Detailed Breakdown</h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                {renderResultsColumn(1)}
-                {renderResultsColumn(16)}
-                {renderResultsColumn(31)}
-                {renderResultsColumn(46)}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column: Image */}
+            <div className="flex flex-col items-center">
+                <h3 className="text-xl font-semibold text-gray-700 mb-4">Scanned Image</h3>
+                {capturedImage ? (
+                    <div className="bg-gray-100 p-2 rounded-lg shadow-inner w-full">
+                        <img 
+                            src={capturedImage} 
+                            alt="Captured answer sheet" 
+                            className="rounded-md w-full h-auto object-contain" 
+                        />
+                    </div>
+                ) : (
+                    <div className="bg-gray-100 p-2 rounded-lg shadow-inner flex items-center justify-center min-h-[300px] w-full">
+                        <p className="text-gray-500">Image not available.</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Right Column: Score and Breakdown */}
+            <div>
+                <div className="text-center mb-6">
+                    <div className="flex justify-center items-baseline space-x-4">
+                        <p className="text-5xl font-bold text-blue-600">{score}<span className="text-3xl text-gray-500">/{totalAnswered}</span></p>
+                        <p className="text-2xl font-semibold text-gray-600">({percentage}%)</p>
+                    </div>
+                </div>
+                
+                <div className="my-6">
+                    <h3 className="text-xl font-semibold text-gray-700 mb-4 text-center">Detailed Breakdown</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {renderResultsColumn(1)}
+                        {renderResultsColumn(16)}
+                        {renderResultsColumn(31)}
+                        {renderResultsColumn(46)}
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
+        <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-center items-center gap-4">
             <button onClick={handleSave} className="w-full sm:w-auto px-6 py-3 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 transition-colors">
                 Save Result
             </button>

@@ -1,9 +1,8 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import Loader from './Loader';
 
 interface CameraViewProps {
-  onScan: (imageData: string) => void;
+  onScan: (dataUrl: string) => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -52,8 +51,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onScan, isLoading, error }) => 
       if(context){
         context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-        const base64Data = dataUrl.split(',')[1];
-        onScan(base64Data);
+        onScan(dataUrl);
       }
     }
   };
