@@ -1,0 +1,7 @@
+{
+  "name": "Answer Sheet Scanner",
+  "description": "An AI-powered answer sheet scanner that uses your device's camera to grade multiple-choice tests instantly. Set an answer key, scan the sheet, and get immediate results.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
