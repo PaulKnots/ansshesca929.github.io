@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StudentAnswers, AnswerKey, ScanResult } from '../types';
 import { TOTAL_QUESTIONS, QUESTIONS_PER_COLUMN } from '../constants';
 
@@ -11,10 +11,12 @@ interface ResultsDisplayProps {
 }
 
 const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerKey, capturedImage, onSave, onScanNext }) => {
+  const [imageDims, setImageDims] = useState<{ naturalWidth: number, naturalHeight: number, displayWidth: number, displayHeight: number } | null>(null);
+
   let score = 0;
   for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
     const qNum = i.toString();
-    if (answerKey[qNum] && studentAnswers[qNum] === answerKey[qNum]) {
+    if (answerKey[qNum] && studentAnswers[qNum]?.value === answerKey[qNum]) {
       score++;
     }
   }
@@ -34,12 +36,22 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerK
   };
   
   const getStatusColor = (qNum: string) => {
-    if (!answerKey[qNum]) return 'bg-gray-200 text-gray-500'; // Not in key
-    const studentAnswer = studentAnswers[qNum];
+    if (!answerKey[qNum]) return 'bg-gray-200 text-gray-500';
+    const studentAnswer = studentAnswers[qNum]?.value;
     const correctAnswer = answerKey[qNum];
     if (studentAnswer === correctAnswer) return 'bg-green-200 text-green-800';
     if (studentAnswer === 'N/A' || studentAnswer === 'MULTIPLE') return 'bg-yellow-200 text-yellow-800';
     return 'bg-red-200 text-red-800';
+  };
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    const img = e.currentTarget;
+    setImageDims({
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+        displayWidth: img.clientWidth,
+        displayHeight: img.clientHeight,
+    });
   };
 
   const renderResultsColumn = (start: number) => (
@@ -48,10 +60,10 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerK
         <div key={qNum} className={`flex items-center p-2 rounded-md text-sm ${getStatusColor(qNum.toString())}`}>
           <span className="font-bold w-8">{qNum}.</span>
           <div className="flex-grow">
-            <span className="font-mono">{studentAnswers[qNum.toString()] || 'ERR'}</span>
+            <span className="font-mono">{studentAnswers[qNum.toString()]?.value || 'ERR'}</span>
           </div>
           <div className="font-bold text-right">
-            {studentAnswers[qNum.toString()] !== answerKey[qNum.toString()] && answerKey[qNum.toString()] ? (
+            {studentAnswers[qNum.toString()]?.value !== answerKey[qNum.toString()] && answerKey[qNum.toString()] ? (
               <span className="font-mono text-green-700">{answerKey[qNum.toString()]}</span>
             ) : <span className="text-green-600">✓</span>}
           </div>
@@ -67,25 +79,55 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerK
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Column: Image */}
             <div className="flex flex-col items-center">
-                <h3 className="text-xl font-semibold text-gray-700 mb-4">Scanned Image</h3>
-                {capturedImage ? (
-                    <div className="bg-gray-100 p-2 rounded-lg shadow-inner w-full">
-                        <img 
-                            src={capturedImage} 
-                            alt="Captured answer sheet" 
-                            className="rounded-md w-full h-auto object-contain" 
-                        />
-                    </div>
-                ) : (
-                    <div className="bg-gray-100 p-2 rounded-lg shadow-inner flex items-center justify-center min-h-[300px] w-full">
-                        <p className="text-gray-500">Image not available.</p>
-                    </div>
-                )}
+                <h3 className="text-xl font-semibold text-gray-700 mb-4">Scanned Image with Detections</h3>
+                <div className="relative bg-gray-100 p-2 rounded-lg shadow-inner w-full">
+                    {capturedImage ? (
+                        <>
+                            <img 
+                                src={capturedImage} 
+                                alt="Captured answer sheet" 
+                                className="rounded-md w-full h-auto object-contain"
+                                onLoad={handleImageLoad}
+                            />
+                            {imageDims && Object.values(studentAnswers).map((answer, index) => {
+                                if (!answer.coordinates) return null;
+
+                                const scaleX = imageDims.displayWidth / imageDims.naturalWidth;
+                                const scaleY = imageDims.displayHeight / imageDims.naturalHeight;
+                                const left = answer.coordinates.x * scaleX;
+                                const top = answer.coordinates.y * scaleY;
+                                
+                                const isCorrect = answerKey[(index + 1).toString()] === answer.value;
+                                const color = isCorrect ? 'rgba(74, 222, 128, 0.7)' : 'rgba(239, 68, 68, 0.7)';
+                                const borderColor = isCorrect ? 'rgba(34, 197, 94, 0.9)' : 'rgba(220, 38, 38, 0.9)';
+
+                                return (
+                                    <div
+                                        key={index}
+                                        className="absolute rounded-full"
+                                        style={{
+                                            left: `${left}px`,
+                                            top: `${top}px`,
+                                            width: '14px',
+                                            height: '14px',
+                                            backgroundColor: color,
+                                            border: `2px solid ${borderColor}`,
+                                            transform: 'translate(-50%, -50%)',
+                                            pointerEvents: 'none'
+                                        }}
+                                    />
+                                );
+                            })}
+                        </>
+                    ) : (
+                        <div className="flex items-center justify-center min-h-[300px] w-full">
+                            <p className="text-gray-500">Image not available.</p>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Right Column: Score and Breakdown */}
             <div>
                 <div className="text-center mb-6">
                     <div className="flex justify-center items-baseline space-x-4">

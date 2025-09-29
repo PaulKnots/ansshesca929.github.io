@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudentAnswers } from '../types';
 
@@ -10,6 +9,27 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
+const questionSchema = {
+    type: Type.OBJECT,
+    properties: {
+        value: {
+            type: Type.STRING,
+            description: `The detected answer. Can be "A", "B", "C", "D", "E", "N/A" (no answer), or "MULTIPLE" (multiple answers).`
+        },
+        coordinates: {
+            type: Type.OBJECT,
+            properties: {
+                x: { type: Type.NUMBER },
+                y: { type: Type.NUMBER }
+            },
+            nullable: true,
+            description: "The (x, y) coordinates of the center of the shaded bubble, relative to the top-left of the image. Null if no bubble is detected (e.g., for N/A or MULTIPLE)."
+        }
+    },
+    required: ["value", "coordinates"]
+};
+
+
 const responseSchema = {
     type: Type.OBJECT,
     properties: {},
@@ -18,37 +38,28 @@ const responseSchema = {
 
 for (let i = 1; i <= 60; i++) {
     const key = i.toString();
-    responseSchema.properties[key] = {
-        type: Type.STRING,
-        description: `The answer for question ${i}. Can be "A", "B", "C", "D", "E", "N/A", or "MULTIPLE".`
-    };
+    responseSchema.properties[key] = questionSchema;
     responseSchema.required.push(key);
 }
 
 
 export const gradeSheet = async (base64ImageData: string): Promise<StudentAnswers> => {
     const prompt = `
-You are an expert AI assistant specializing in optical mark recognition (OMR). Your task is to analyze an image of an answer sheet and extract the student's answers.
+You are an expert AI assistant specializing in advanced optical mark recognition (OMR) for document scanning. Your task is to analyze an image, precisely locate a specific answer sheet within it, and extract the student's answers along with their exact locations.
 
 **Answer Sheet Specifications:**
 - Layout: 60 questions in total, arranged in a grid.
 - Grid: 15 rows and 24 columns.
-- Columns Structure:
-  - Columns 1, 7, 13, 19: Question numbers (1-15, 16-30, 31-45, 46-60 respectively).
-  - Columns 2-6: Options A, B, C, D, E for questions 1-15.
-  - Columns 8-12: Options A, B, C, D, E for questions 16-30.
-  - Columns 14-18: Options A, B, C, D, E for questions 31-45.
-  - Columns 20-24: Options A, B, C, D, E for questions 46-60.
-- Shading: Students use a pencil to shade circular bubbles. A bubble is considered "shaded" if it is at least 60% filled, especially in the center.
+- Shading: Students use a pencil to shade circular bubbles. A bubble is "shaded" if it is at least 60% filled.
 
 **Your Instructions:**
-1.  **Isolate the Answer Sheet:** First, accurately locate the rectangular answer sheet within the provided image, even if it's rotated or skewed. Crop out everything else.
-2.  **Analyze the Grid:** On the cropped image, analyze the grid of bubbles based on the specifications above.
-3.  **Determine Answers:** For each question from 1 to 60, identify which option (A, B, C, D, or E) is shaded.
+1.  **Detect and Isolate the Answer Sheet:** Like a document scanner, your first priority is to find the four corners of the answer sheet in the image. The sheet might be rotated, skewed, or have background elements. Perform a perspective transform to "crop" the sheet virtually. All subsequent analysis must be performed on this isolated sheet area.
+2.  **Analyze the Grid and Map Coordinates:** On the isolated sheet, analyze the grid of bubbles. For each question from 1 to 60, identify which option (A, B, C, D, or E) is shaded.
+3.  **Determine Coordinates:** CRITICAL: For each answer you identify, you must provide the precise (x, y) pixel coordinates of the center of the shaded bubble. These coordinates MUST be relative to the top-left corner of the ORIGINAL, full-sized input image.
 4.  **Handle Ambiguity:**
-    - If a question has **no** bubble shaded, the answer is "N/A".
-    - If a question has **multiple** bubbles shaded, the answer is "MULTIPLE".
-5.  **Format Output:** Return your findings strictly as a JSON object matching the provided schema. The keys must be the question numbers as strings (from "1" to "60"), and the values must be the corresponding letter answer ("A", "B", "C", "D", "E"), "N/A", or "MULTIPLE".
+    - If a question has **no** bubble shaded, the answer value is "N/A" and its coordinates should be null.
+    - If a question has **multiple** bubbles shaded, the answer value is "MULTIPLE" and its coordinates should be null.
+5.  **Format Output:** Return your findings strictly as a JSON object matching the provided schema. Each key must be a question number (e.g., "1"), and its value must be an object containing the answer 'value' and the 'coordinates' object.
 `;
 
     try {
