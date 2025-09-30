@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { AnswerKey, StudentAnswers, GradedResult, AnswerOption } from '../types';
 import { SaveIcon, RefreshCwIcon } from './icons/Icons';
@@ -13,6 +12,7 @@ interface ResultsDisplayProps {
 }
 
 const OPTIONS: AnswerOption[] = ['A', 'B', 'C', 'D', 'E'];
+const TOTAL_QUESTIONS = 60;
 
 const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerKey, scannedImage, onSave, onScanNew }) => {
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
@@ -20,16 +20,18 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerK
 
     const { score, totalCorrect, totalQuestions } = useMemo(() => {
         let correct = 0;
-        const questions = Object.keys(answerKey).map(Number);
-        questions.forEach(qNum => {
+        const questions = Object.keys(answerKey).filter(q => answerKey[parseInt(q)] !== null);
+        questions.forEach(qNumStr => {
+            const qNum = parseInt(qNumStr, 10);
             if (answerKey[qNum] && studentAnswers[qNum] === answerKey[qNum]) {
                 correct++;
             }
         });
+        const totalDefinedQuestions = questions.length;
         return {
-            score: questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0,
+            score: totalDefinedQuestions > 0 ? Math.round((correct / totalDefinedQuestions) * 100) : 0,
             totalCorrect: correct,
-            totalQuestions: questions.length,
+            totalQuestions: totalDefinedQuestions,
         };
     }, [studentAnswers, answerKey]);
 
@@ -62,11 +64,18 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerK
         }
         return 'bg-slate-200 text-slate-600'; // Not chosen
     };
+    
+    const questionBlocks = [
+        Array.from({ length: 15 }, (_, i) => i + 1),  // 1-15
+        Array.from({ length: 15 }, (_, i) => i + 16), // 16-30
+        Array.from({ length: 15 }, (_, i) => i + 31), // 31-45
+        Array.from({ length: 15 }, (_, i) => i + 46)  // 46-60
+    ];
 
     return (
-        <div className="max-w-6xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center self-start">
+        <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                <div className="xl:col-span-1 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center self-start sticky top-28">
                     <h2 className="text-2xl font-bold text-slate-800 mb-4">Grading Complete</h2>
                     <img src={scannedImage} alt="Scanned answer sheet" className="rounded-lg mb-4 w-full shadow-md" />
 
@@ -94,32 +103,33 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerK
                     </div>
                 </div>
 
-                <div className="lg:col-span-2 bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+                <div className="xl:col-span-2 bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
                     <h3 className="text-xl font-bold text-slate-800 mb-4">Detailed Results</h3>
                      <div className="flex flex-wrap gap-4 mb-6 text-sm">
                         <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-green-500 mr-2"></div>Correct</div>
                         <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-red-500 mr-2"></div>Incorrect</div>
                         <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-green-200 border-2 border-green-500 mr-2"></div>Correct Answer</div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
-                        {Object.keys(answerKey).map(qNumStr => {
-                            const qNum = parseInt(qNumStr, 10);
-                            return (
-                                <div key={qNum} className="flex items-center justify-between p-3 border-b border-slate-200">
-                                    <div className="font-semibold text-slate-700 w-10">{qNum}.</div>
-                                    <div className="flex space-x-1 sm:space-x-2">
-                                        {OPTIONS.map(opt => (
-                                            <span
-                                                key={opt}
-                                                className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full transition-colors font-medium text-sm ${getCellClass(qNum, opt)}`}
-                                            >
-                                                {opt}
-                                            </span>
-                                        ))}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2">
+                         {questionBlocks.map((block, blockIndex) => (
+                            <div key={blockIndex} className="flex flex-col">
+                                {block.map(qNum => (
+                                    <div key={qNum} className="flex items-center justify-between py-2 border-b border-slate-200">
+                                        <div className="font-semibold text-slate-700 w-8 text-sm">{qNum}.</div>
+                                        <div className="flex space-x-1">
+                                            {OPTIONS.map(opt => (
+                                                <span
+                                                    key={opt}
+                                                    className={`w-6 h-6 flex items-center justify-center rounded-full transition-colors font-medium text-xs ${getCellClass(qNum, opt)}`}
+                                                >
+                                                    {opt}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                ))}
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
