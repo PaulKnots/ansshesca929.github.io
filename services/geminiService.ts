@@ -3,10 +3,6 @@ import { StudentAnswers } from '../types';
 
 const API_KEY = process.env.API_KEY;
 
-if (!API_KEY) {
-  throw new Error("API_KEY environment variable not set");
-}
-
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 const responseSchema = {
@@ -47,11 +43,13 @@ export const scanAnswerSheet = async (imageBase64: string): Promise<StudentAnswe
         - Questions 46-60 are in the fourth block (columns 19-24).
     
     Task:
-    For each question from 1 to 60, identify which option (A, B, C, D, or E) is shaded.
+    Use these precise physical dimensions as a primary guide to locate the answer grid and correctly map each cell. For each question from 1 to 60, identify which option (A, B, C, D, or E) is shaded.
     
     Shading Detection Rules:
-    - Be lenient with shading. A cell should be considered shaded if its center is dark and it appears at least 50% filled.
-    - Account for variations in lighting and pencil shading. An imperfectly or lightly shaded box should still be counted if it's clearly the intended answer for that row.
+    - Focus on relative darkness. Identify the darkest cell within each question's row of options (A-E), rather than relying on an absolute darkness threshold. This is critical to compensate for variations in photo lighting (over/under exposure) and shadows.
+    - Prioritize dark spots. A cell is considered "shaded" if it contains a concentrated dark area (a "dark spot"), which represents the student's pencil mark. The entire cell does not need to be uniformly filled.
+    - Lenient Threshold: Consider a cell shaded if it's the most clearly marked in its row and appears to be at least 50% filled with a dark spot.
+    - Ignore smudges and light marks. Differentiate between intentional, dark pencil marks and accidental smudges or very light pencil strokes.
     
     Output:
     Return a single JSON object where keys are the question numbers (as strings from "1" to "60") and values are the corresponding letter of the shaded option ('A', 'B', 'C', 'D', 'E'). If no option is shaded for a question, the value must be null.`

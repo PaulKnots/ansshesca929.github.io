@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { AnswerKey, AnswerOption } from '../types';
 
@@ -25,40 +24,47 @@ const AnswerKeyForm: React.FC<AnswerKeyFormProps> = ({ onSubmit }) => {
         onSubmit(finalAnswers);
     };
     
-    const renderQuestionInputs = () => {
-        return Array.from({ length: TOTAL_QUESTIONS }, (_, i) => i + 1).map(qNum => (
-            <div key={qNum} className="flex items-center justify-between p-3 border-b border-slate-200">
-                <div className="font-semibold text-slate-700 w-10">{qNum}.</div>
-                <div className="flex space-x-2">
-                    {OPTIONS.map(opt => (
-                        <label key={opt} className="cursor-pointer">
-                            <input
-                                type="radio"
-                                name={`question-${qNum}`}
-                                value={opt}
-                                checked={answers[qNum] === opt}
-                                onChange={() => handleAnswerChange(qNum, opt)}
-                                className="sr-only"
-                            />
-                            <span className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors font-medium
-                                ${answers[qNum] === opt ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
-                            >
-                                {opt}
-                            </span>
-                        </label>
-                    ))}
-                </div>
-            </div>
-        ));
-    };
+    const questionBlocks = [
+        Array.from({ length: 15 }, (_, i) => i + 1),  // 1-15
+        Array.from({ length: 15 }, (_, i) => i + 16), // 16-30
+        Array.from({ length: 15 }, (_, i) => i + 31), // 31-45
+        Array.from({ length: 15 }, (_, i) => i + 46)  // 46-60
+    ];
 
     return (
-        <div className="max-w-4xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+        <div className="max-w-7xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
             <h2 className="text-2xl font-bold text-slate-800 mb-2">Set Answer Key</h2>
             <p className="text-slate-500 mb-6">Enter the correct answers for the test. You can proceed to scan once the key is set.</p>
             <form onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-2 mb-8">
-                    {renderQuestionInputs()}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2 mb-8">
+                    {questionBlocks.map((block, blockIndex) => (
+                        <div key={blockIndex} className="flex flex-col space-y-1">
+                            {block.map(qNum => (
+                                <div key={qNum} className="flex items-center justify-between p-2 rounded-md hover:bg-slate-50">
+                                    <div className="font-semibold text-slate-700 w-10">{qNum}.</div>
+                                    <div className="flex space-x-1">
+                                        {OPTIONS.map(opt => (
+                                            <label key={opt} className="cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name={`question-${qNum}`}
+                                                    value={opt}
+                                                    checked={answers[qNum] === opt}
+                                                    onChange={() => handleAnswerChange(qNum, opt)}
+                                                    className="sr-only"
+                                                />
+                                                <span className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors font-medium text-sm
+                                                    ${answers[qNum] === opt ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                                                >
+                                                    {opt}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
                 </div>
                 <button 
                     type="submit" 
