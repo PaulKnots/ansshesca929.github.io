@@ -1,8 +1,7 @@
-
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { scanAnswerSheet } from '../services/geminiService';
 import { StudentAnswers } from '../types';
-import { CameraIcon } from './icons/Icons';
+import { UploadCloudIcon } from './icons/Icons';
 
 interface CameraScannerProps {
     onScanComplete: (answers: StudentAnswers, image: string) => void;
@@ -11,100 +10,130 @@ interface CameraScannerProps {
 }
 
 const CameraScanner: React.FC<CameraScannerProps> = ({ onScanComplete, onScanError, setIsLoading }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [stream, setStream] = useState<MediaStream | null>(null);
-    const [cameraError, setCameraError] = useState<string | null>(null);
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [dragActive, setDragActive] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
 
-    const cleanupCamera = useCallback(() => {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            setStream(null);
-        }
-    }, [stream]);
-
+    // Cleanup object URL to avoid memory leaks
     useEffect(() => {
-        const enableCamera = async () => {
-            try {
-                const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' } 
-                });
-                setStream(mediaStream);
-                if (videoRef.current) {
-                    videoRef.current.srcObject = mediaStream;
-                }
-            } catch (err) {
-                console.error("Error accessing camera:", err);
-                setCameraError("Could not access camera. Please ensure permissions are granted and try again.");
+        return () => {
+            if (previewUrl) {
+                URL.revokeObjectURL(previewUrl);
             }
         };
+    }, [previewUrl]);
 
-        enableCamera();
-        return cleanupCamera;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    const handleFile = (file: File) => {
+        if (file && file.type.startsWith('image/')) {
+            setImageFile(file);
+            setPreviewUrl(URL.createObjectURL(file));
+        } else {
+            onScanError("Please upload a valid image file (JPEG, PNG, etc.).");
+        }
+    };
 
-    const captureImage = async () => {
-        if (!videoRef.current || !canvasRef.current) return;
-        setIsLoading(true);
-        cleanupCamera(); // Turn off camera to indicate processing
+    const handleDrag = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    };
 
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const context = canvas.getContext('2d');
-        if (!context) {
-            onScanError("Could not get canvas context.");
-            setIsLoading(false);
-            return;
-        };
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFile(e.dataTransfer.files[0]);
+        }
+    };
 
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-        const base64Image = imageDataUrl.split(',')[1];
-        
-        try {
-            const answers = await scanAnswerSheet(base64Image);
-            onScanComplete(answers, imageDataUrl);
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during scanning.";
-            onScanError(errorMessage);
-        } finally {
-            // Loading is handled in parent component
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        e.preventDefault();
+        if (e.target.files && e.target.files[0]) {
+            handleFile(e.target.files[0]);
         }
     };
     
-    if (cameraError) {
-        return (
-            <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg text-center">
-                <h2 className="text-xl font-bold text-red-600">Camera Error</h2>
-                <p className="text-slate-600 mt-4">{cameraError}</p>
-            </div>
-        );
+    const onButtonClick = () => {
+        inputRef.current?.click();
+    };
+
+    const processImage = useCallback(async () => {
+        if (!imageFile) return;
+
+        setIsLoading(true);
+
+        const reader = new FileReader();
+        reader.readAsDataURL(imageFile);
+        reader.onloadend = async () => {
+            try {
+                const base64String = (reader.result as string).split(',')[1];
+                const dataUrl = reader.result as string;
+                const answers = await scanAnswerSheet(base64String);
+                onScanComplete(answers, dataUrl);
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during processing.";
+                onScanError(errorMessage);
+            }
+        };
+        reader.onerror = () => {
+             onScanError("Failed to read the image file.");
+             setIsLoading(false);
+        };
+    }, [imageFile, onScanComplete, onScanError, setIsLoading]);
+    
+    const clearSelection = () => {
+        setImageFile(null);
+        setPreviewUrl(null);
+        if (inputRef.current) {
+            inputRef.current.value = "";
+        }
     }
 
     return (
-        <div className="max-w-4xl mx-auto flex flex-col items-center">
-            <div className="w-full bg-slate-900 rounded-2xl shadow-2xl p-4 relative overflow-hidden">
-                <video ref={videoRef} autoPlay playsInline className="w-full h-auto rounded-lg" />
-                <div className="absolute inset-0 border-[20px] sm:border-[30px] border-black/30 rounded-2xl pointer-events-none">
-                     <div className="absolute inset-4 border-2 border-dashed border-white/50 rounded-lg"></div>
+      <div className="max-w-2xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Upload Answer Sheet</h2>
+        <p className="text-slate-500 mb-6">Upload a cropped image of the student's answer sheet to begin grading.</p>
+        
+        {!previewUrl ? (
+            <form 
+                className="relative"
+                onDragEnter={handleDrag}
+                onSubmit={(e) => e.preventDefault()}
+            >
+                <div 
+                    onClick={onButtonClick}
+                    className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors
+                    ${dragActive ? 'border-teal-500 bg-teal-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}
+                >
+                    <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
+                    <UploadCloudIcon className="w-16 h-16 mx-auto text-slate-400 mb-4" />
+                    <p className="font-semibold text-slate-700">Click to upload or drag and drop</p>
+                    <p className="text-sm text-slate-500">PNG, JPG, or WEBP</p>
                 </div>
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full px-4">
-                    <p className="text-white text-center text-sm bg-black/50 p-2 rounded-lg">Align the answer sheet within the dashed frame and capture.</p>
+                 {dragActive && <div className="absolute inset-0 w-full h-full" onDragLeave={handleDrag} onDrop={handleDrop}></div>}
+            </form>
+        ) : (
+            <div>
+                <div className="mb-6 border border-slate-200 rounded-lg p-2">
+                    <img src={previewUrl} alt="Answer sheet preview" className="w-full max-h-[50vh] object-contain rounded-md" />
+                </div>
+                <div className="flex flex-col sm:flex-row gap-4">
+                    <button onClick={processImage} className="flex-1 bg-teal-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-teal-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-teal-300">
+                        Grade This Sheet
+                    </button>
+                    <button onClick={clearSelection} className="flex-1 bg-slate-200 text-slate-700 font-bold py-3 px-6 rounded-lg hover:bg-slate-300 transition-colors">
+                        Choose Different Image
+                    </button>
                 </div>
             </div>
-            <button
-                onClick={captureImage}
-                disabled={!stream}
-                className="mt-8 flex items-center justify-center w-20 h-20 bg-teal-600 rounded-full text-white shadow-lg
-                           hover:bg-teal-700 transition-all transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-teal-300
-                           disabled:bg-slate-400 disabled:cursor-not-allowed disabled:transform-none"
-            >
-                <CameraIcon className="w-10 h-10"/>
-            </button>
-        </div>
+        )}
+      </div>
     );
 };
 

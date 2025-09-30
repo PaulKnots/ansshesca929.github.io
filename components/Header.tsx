@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { AppState } from '../types';
-import { KeyIcon, CameraIcon, ClipboardListIcon, PencilIcon } from './icons/Icons';
+import { KeyIcon, ClipboardListIcon, PencilIcon, UploadCloudIcon } from './icons/Icons';
 
 interface HeaderProps {
     appState: AppState;
@@ -41,7 +40,7 @@ const Header: React.FC<HeaderProps> = ({ appState, navigateTo, hasKey, onEditKey
                 </div>
                 <nav className="flex items-center space-x-2 bg-slate-100 p-1 rounded-lg">
                     <NavButton state="KEY_INPUT" icon={<KeyIcon />} label="Answer Key" disabled={!hasKey} />
-                    <NavButton state="SCANNING" icon={<CameraIcon />} label="Scan" disabled={!hasKey} />
+                    <NavButton state="SCANNING" icon={<UploadCloudIcon />} label="Upload & Scan" disabled={!hasKey} />
                     <NavButton state="HISTORY" icon={<ClipboardListIcon />} label="History" />
                      {hasKey && appState !== 'KEY_INPUT' && (
                         <button
