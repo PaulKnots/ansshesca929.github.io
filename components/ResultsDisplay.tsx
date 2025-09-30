@@ -1,163 +1,146 @@
-import React, { useState } from 'react';
-import { StudentAnswers, AnswerKey, ScanResult } from '../types';
-import { TOTAL_QUESTIONS, QUESTIONS_PER_COLUMN } from '../constants';
+
+import React, { useState, useMemo } from 'react';
+import { AnswerKey, StudentAnswers, GradedResult, AnswerOption } from '../types';
+import { SaveIcon, RefreshCwIcon } from './icons/Icons';
+import Modal from './Modal';
 
 interface ResultsDisplayProps {
-  studentAnswers: StudentAnswers;
-  answerKey: AnswerKey;
-  capturedImage: string | null;
-  onSave: (result: ScanResult) => void;
-  onScanNext: () => void;
+    studentAnswers: StudentAnswers;
+    answerKey: AnswerKey;
+    scannedImage: string;
+    onSave: (result: GradedResult) => void;
+    onScanNew: () => void;
 }
 
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerKey, capturedImage, onSave, onScanNext }) => {
-  const [imageDims, setImageDims] = useState<{ naturalWidth: number, naturalHeight: number, displayWidth: number, displayHeight: number } | null>(null);
+const OPTIONS: AnswerOption[] = ['A', 'B', 'C', 'D', 'E'];
 
-  let score = 0;
-  for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
-    const qNum = i.toString();
-    if (answerKey[qNum] && studentAnswers[qNum]?.value === answerKey[qNum]) {
-      score++;
-    }
-  }
+const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ studentAnswers, answerKey, scannedImage, onSave, onScanNew }) => {
+    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+    const [studentName, setStudentName] = useState('');
 
-  const totalAnswered = Object.keys(answerKey).filter(k => answerKey[k]).length;
-  const percentage = totalAnswered > 0 ? ((score / totalAnswered) * 100).toFixed(1) : 0;
-  
-  const handleSave = () => {
-    const result: ScanResult = {
-      id: new Date().toISOString(),
-      timestamp: new Date().toLocaleString(),
-      score,
-      total: totalAnswered,
-      studentAnswers,
+    const { score, totalCorrect, totalQuestions } = useMemo(() => {
+        let correct = 0;
+        const questions = Object.keys(answerKey).map(Number);
+        questions.forEach(qNum => {
+            if (answerKey[qNum] && studentAnswers[qNum] === answerKey[qNum]) {
+                correct++;
+            }
+        });
+        return {
+            score: questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0,
+            totalCorrect: correct,
+            totalQuestions: questions.length,
+        };
+    }, [studentAnswers, answerKey]);
+
+    const handleSave = () => {
+        const result: GradedResult = {
+            id: new Date().toISOString(),
+            studentName: studentName.trim() || 'Unnamed',
+            score: score,
+            total: totalQuestions,
+            date: new Date().toLocaleDateString(),
+            studentAnswers,
+            answerKey
+        };
+        onSave(result);
+        setIsSaveModalOpen(false);
     };
-    onSave(result);
-  };
-  
-  const getStatusColor = (qNum: string) => {
-    if (!answerKey[qNum]) return 'bg-gray-200 text-gray-500';
-    const studentAnswer = studentAnswers[qNum]?.value;
-    const correctAnswer = answerKey[qNum];
-    if (studentAnswer === correctAnswer) return 'bg-green-200 text-green-800';
-    if (studentAnswer === 'N/A' || studentAnswer === 'MULTIPLE') return 'bg-yellow-200 text-yellow-800';
-    return 'bg-red-200 text-red-800';
-  };
 
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    const img = e.currentTarget;
-    setImageDims({
-        naturalWidth: img.naturalWidth,
-        naturalHeight: img.naturalHeight,
-        displayWidth: img.clientWidth,
-        displayHeight: img.clientHeight,
-    });
-  };
+    const getCellClass = (qNum: number, option: AnswerOption) => {
+        const isCorrectAnswer = answerKey[qNum] === option;
+        const isStudentAnswer = studentAnswers[qNum] === option;
+        
+        if (isCorrectAnswer && isStudentAnswer) {
+            return 'bg-green-500 text-white'; // Correctly chosen
+        }
+        if (isCorrectAnswer) {
+            return 'bg-green-200 text-green-800 border-2 border-green-500'; // The correct answer, not chosen
+        }
+        if (isStudentAnswer) {
+            return 'bg-red-500 text-white'; // Incorrectly chosen
+        }
+        return 'bg-slate-200 text-slate-600'; // Not chosen
+    };
 
-  const renderResultsColumn = (start: number) => (
-    <div key={`res-col-${start}`} className="space-y-2">
-      {Array.from({ length: QUESTIONS_PER_COLUMN }, (_, i) => start + i).map(qNum => (
-        <div key={qNum} className={`flex items-center p-2 rounded-md text-sm ${getStatusColor(qNum.toString())}`}>
-          <span className="font-bold w-8">{qNum}.</span>
-          <div className="flex-grow">
-            <span className="font-mono">{studentAnswers[qNum.toString()]?.value || 'ERR'}</span>
-          </div>
-          <div className="font-bold text-right">
-            {studentAnswers[qNum.toString()]?.value !== answerKey[qNum.toString()] && answerKey[qNum.toString()] ? (
-              <span className="font-mono text-green-700">{answerKey[qNum.toString()]}</span>
-            ) : <span className="text-green-600">✓</span>}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+    return (
+        <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center self-start">
+                    <h2 className="text-2xl font-bold text-slate-800 mb-4">Grading Complete</h2>
+                    <img src={scannedImage} alt="Scanned answer sheet" className="rounded-lg mb-4 w-full shadow-md" />
 
-  return (
-    <div className="bg-white p-6 rounded-xl shadow-lg animate-fade-in">
-        <div className="text-center mb-6 border-b pb-4">
-            <h2 className="text-3xl font-bold text-gray-800">Scan Results</h2>
-        </div>
+                    <div className="text-center my-4">
+                        <p className="text-slate-500">Score</p>
+                        <p className="text-6xl font-bold text-teal-600">{score}%</p>
+                        <p className="text-lg text-slate-600 font-medium">{totalCorrect} / {totalQuestions} Correct</p>
+                    </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="flex flex-col items-center">
-                <h3 className="text-xl font-semibold text-gray-700 mb-4">Scanned Image with Detections</h3>
-                <div className="relative bg-gray-100 p-2 rounded-lg shadow-inner w-full">
-                    {capturedImage ? (
-                        <>
-                            <img 
-                                src={capturedImage} 
-                                alt="Captured answer sheet" 
-                                className="rounded-md w-full h-auto object-contain"
-                                onLoad={handleImageLoad}
-                            />
-                            {imageDims && Object.values(studentAnswers).map((answer, index) => {
-                                if (!answer.coordinates) return null;
-
-                                const scaleX = imageDims.displayWidth / imageDims.naturalWidth;
-                                const scaleY = imageDims.displayHeight / imageDims.naturalHeight;
-                                const left = answer.coordinates.x * scaleX;
-                                const top = answer.coordinates.y * scaleY;
-                                
-                                const isCorrect = answerKey[(index + 1).toString()] === answer.value;
-                                const color = isCorrect ? 'rgba(74, 222, 128, 0.7)' : 'rgba(239, 68, 68, 0.7)';
-                                const borderColor = isCorrect ? 'rgba(34, 197, 94, 0.9)' : 'rgba(220, 38, 38, 0.9)';
-
-                                return (
-                                    <div
-                                        key={index}
-                                        className="absolute rounded-full"
-                                        style={{
-                                            left: `${left}px`,
-                                            top: `${top}px`,
-                                            width: '14px',
-                                            height: '14px',
-                                            backgroundColor: color,
-                                            border: `2px solid ${borderColor}`,
-                                            transform: 'translate(-50%, -50%)',
-                                            pointerEvents: 'none'
-                                        }}
-                                    />
-                                );
-                            })}
-                        </>
-                    ) : (
-                        <div className="flex items-center justify-center min-h-[300px] w-full">
-                            <p className="text-gray-500">Image not available.</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <div>
-                <div className="text-center mb-6">
-                    <div className="flex justify-center items-baseline space-x-4">
-                        <p className="text-5xl font-bold text-blue-600">{score}<span className="text-3xl text-gray-500">/{totalAnswered}</span></p>
-                        <p className="text-2xl font-semibold text-gray-600">({percentage}%)</p>
+                    <div className="w-full flex flex-col space-y-3 mt-4">
+                        <button
+                            onClick={() => setIsSaveModalOpen(true)}
+                            className="w-full flex items-center justify-center bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-transform transform hover:scale-105"
+                        >
+                            <SaveIcon className="mr-2" />
+                            Save Result
+                        </button>
+                        <button
+                            onClick={onScanNew}
+                            className="w-full flex items-center justify-center bg-slate-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-slate-700 transition-transform transform hover:scale-105"
+                        >
+                            <RefreshCwIcon className="mr-2" />
+                            Scan Next Sheet
+                        </button>
                     </div>
                 </div>
-                
-                <div className="my-6">
-                    <h3 className="text-xl font-semibold text-gray-700 mb-4 text-center">Detailed Breakdown</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {renderResultsColumn(1)}
-                        {renderResultsColumn(16)}
-                        {renderResultsColumn(31)}
-                        {renderResultsColumn(46)}
+
+                <div className="lg:col-span-2 bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+                    <h3 className="text-xl font-bold text-slate-800 mb-4">Detailed Results</h3>
+                     <div className="flex flex-wrap gap-4 mb-6 text-sm">
+                        <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-green-500 mr-2"></div>Correct</div>
+                        <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-red-500 mr-2"></div>Incorrect</div>
+                        <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-green-200 border-2 border-green-500 mr-2"></div>Correct Answer</div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+                        {Object.keys(answerKey).map(qNumStr => {
+                            const qNum = parseInt(qNumStr, 10);
+                            return (
+                                <div key={qNum} className="flex items-center justify-between p-3 border-b border-slate-200">
+                                    <div className="font-semibold text-slate-700 w-10">{qNum}.</div>
+                                    <div className="flex space-x-1 sm:space-x-2">
+                                        {OPTIONS.map(opt => (
+                                            <span
+                                                key={opt}
+                                                className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full transition-colors font-medium text-sm ${getCellClass(qNum, opt)}`}
+                                            >
+                                                {opt}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-center items-center gap-4">
-            <button onClick={handleSave} className="w-full sm:w-auto px-6 py-3 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 transition-colors">
-                Save Result
-            </button>
-            <button onClick={onScanNext} className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors">
-                Scan Next Sheet
-            </button>
+            <Modal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)}>
+                <h3 className="text-xl font-bold text-slate-800 mb-4">Save Result</h3>
+                <p className="text-slate-500 mb-4">Enter a name or ID for this student to save the result.</p>
+                <input
+                    type="text"
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                    placeholder="Student Name / ID"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <div className="mt-6 flex justify-end space-x-3">
+                    <button onClick={() => setIsSaveModalOpen(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300">Cancel</button>
+                    <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+                </div>
+            </Modal>
         </div>
-    </div>
-  );
+    );
 };
 
 export default ResultsDisplay;

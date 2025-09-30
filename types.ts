@@ -1,34 +1,22 @@
 
-// FIX: Removed self-import of `Page` which was causing compilation errors.
-export enum Page {
-  KEY_ENTRY = 'KEY_ENTRY',
-  SCANNING = 'SCANNING',
-  RESULTS = 'RESULTS',
-  SAVED_LIST = 'SAVED_LIST',
-}
+export type AnswerOption = 'A' | 'B' | 'C' | 'D' | 'E';
 
-export interface Answer {
-  value: 'A' | 'B' | 'C' | 'D' | 'E' | 'N/A' | 'MULTIPLE' | '';
-}
+export type AnswerKey = {
+  [key: number]: AnswerOption | null;
+};
 
-export interface Coordinates {
-  x: number;
-  y: number;
-}
+export type StudentAnswers = {
+  [key: number]: AnswerOption | null;
+};
 
-export interface StudentAnswerDetail {
-  value: Answer['value'];
-  coordinates: Coordinates | null;
-}
+export type AppState = 'KEY_INPUT' | 'SCANNING' | 'RESULTS' | 'HISTORY';
 
-export type AnswerKey = Record<string, Answer['value']>;
-
-export type StudentAnswers = Record<string, StudentAnswerDetail>;
-
-export interface ScanResult {
+export interface GradedResult {
   id: string;
-  timestamp: string;
+  studentName: string;
   score: number;
   total: number;
+  date: string;
   studentAnswers: StudentAnswers;
+  answerKey: AnswerKey;
 }

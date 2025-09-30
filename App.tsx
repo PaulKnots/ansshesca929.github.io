@@ -1,104 +1,117 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Page, AnswerKey, StudentAnswers, ScanResult } from './types';
-import AnswerKeyForm from './components/AnswerKeyForm';
-import CameraView from './components/CameraView';
-import ResultsDisplay from './components/ResultsDisplay';
-import SavedResultsList from './components/SavedResultsList';
-import { gradeSheet } from './services/geminiService';
+
+import React, { useState, useCallback } from 'react';
+import { AnswerKey, AppState, StudentAnswers, GradedResult } from './types';
 import Header from './components/Header';
+import AnswerKeyForm from './components/AnswerKeyForm';
+import CameraScanner from './components/CameraScanner';
+import ResultsDisplay from './components/ResultsDisplay';
+import HistoryView from './components/HistoryView';
+import { useLocalStorage } from './hooks/useLocalStorage';
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>(Page.KEY_ENTRY);
-  const [answerKey, setAnswerKey] = useState<AnswerKey>(() => {
-    const savedKey = localStorage.getItem('answerKey');
-    return savedKey ? JSON.parse(savedKey) : {};
-  });
-  const [studentAnswers, setStudentAnswers] = useState<StudentAnswers | null>(null);
-  const [savedResults, setSavedResults] = useState<ScanResult[]>(() => {
-    const saved = localStorage.getItem('savedResults');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [appState, setAppState] = useState<AppState>('KEY_INPUT');
+  const [answerKey, setAnswerKey] = useState<AnswerKey | null>(null);
+  const [lastScan, setLastScan] = useState<{ studentAnswers: StudentAnswers; image: string } | null>(null);
+  const [history, setHistory] = useLocalStorage<GradedResult[]>('scanHistory', []);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    localStorage.setItem('answerKey', JSON.stringify(answerKey));
-  }, [answerKey]);
-
-  useEffect(() => {
-    localStorage.setItem('savedResults', JSON.stringify(savedResults));
-  }, [savedResults]);
-
-  const handleKeySave = (key: AnswerKey) => {
+  const handleKeySubmit = (key: AnswerKey) => {
     setAnswerKey(key);
-    setCurrentPage(Page.SCANNING);
-  };
-
-  const handleScan = async (dataUrl: string) => {
-    setIsLoading(true);
+    setAppState('SCANNING');
     setError(null);
-    setStudentAnswers(null);
-    setCapturedImage(dataUrl);
-    try {
-      const base64Data = dataUrl.split(',')[1];
-      const answers = await gradeSheet(base64Data);
-      setStudentAnswers(answers);
-      setCurrentPage(Page.RESULTS);
-    } catch (err) {
-      setError('Failed to grade the sheet. The AI could not read the image. Please try again with a clearer picture.');
-      setCurrentPage(Page.SCANNING); // Stay on scanning page to retry
-    } finally {
-      setIsLoading(false);
-    }
   };
 
-  const handleSaveResult = (result: ScanResult) => {
-    setSavedResults(prev => [...prev, result]);
-    alert('Result saved!');
+  const handleScanComplete = (studentAnswers: StudentAnswers, image: string) => {
+    setLastScan({ studentAnswers, image });
+    setAppState('RESULTS');
+    setIsLoading(false);
+  };
+
+  const handleScanError = (errorMessage: string) => {
+    setError(errorMessage);
+    setIsLoading(false);
+    setAppState('SCANNING');
+  };
+
+  const handleSaveResult = useCallback((result: GradedResult) => {
+    setHistory(prevHistory => [...prevHistory, result]);
+    setAppState('SCANNING');
+    setLastScan(null);
+  }, [setHistory]);
+
+  const handleScanNew = () => {
+    setAppState('SCANNING');
+    setLastScan(null);
+    setError(null);
   };
   
-  const handleScanNext = () => {
-    setStudentAnswers(null);
-    setCapturedImage(null);
-    setCurrentPage(Page.SCANNING);
-  };
+  const handleEditKey = () => {
+      setAppState('KEY_INPUT');
+      setAnswerKey(null);
+      setLastScan(null);
+      setError(null);
+  }
 
-  const navigateTo = (page: Page) => {
-    setError(null);
-    setCurrentPage(page);
-  };
+  const navigateTo = (state: AppState) => {
+      setAppState(state);
+      setError(null);
+  }
+
 
   const renderContent = () => {
-    switch (currentPage) {
-      case Page.KEY_ENTRY:
-        return <AnswerKeyForm initialKey={answerKey} onSave={handleKeySave} />;
-      case Page.SCANNING:
-        return <CameraView onScan={handleScan} isLoading={isLoading} error={error} />;
-      case Page.RESULTS:
-        if (studentAnswers) {
-          return (
-            <ResultsDisplay 
-              studentAnswers={studentAnswers} 
-              answerKey={answerKey} 
-              capturedImage={capturedImage}
-              onSave={handleSaveResult}
-              onScanNext={handleScanNext}
-            />
-          );
+    switch (appState) {
+      case 'KEY_INPUT':
+        return <AnswerKeyForm onSubmit={handleKeySubmit} />;
+      case 'SCANNING':
+        if (!answerKey) {
+            setAppState('KEY_INPUT');
+            return <AnswerKeyForm onSubmit={handleKeySubmit} />;
         }
-        return null;
-      case Page.SAVED_LIST:
-        return <SavedResultsList results={savedResults} onClear={() => setSavedResults([])} />;
+        return (
+          <CameraScanner
+            onScanComplete={handleScanComplete}
+            onScanError={handleScanError}
+            setIsLoading={setIsLoading}
+          />
+        );
+      case 'RESULTS':
+        if (!lastScan || !answerKey) {
+            handleScanNew(); // Should not happen, but as a fallback
+            return null;
+        }
+        return (
+          <ResultsDisplay
+            studentAnswers={lastScan.studentAnswers}
+            answerKey={answerKey}
+            scannedImage={lastScan.image}
+            onSave={handleSaveResult}
+            onScanNew={handleScanNew}
+          />
+        );
+      case 'HISTORY':
+        return <HistoryView history={history} setHistory={setHistory} />;
       default:
-        return <AnswerKeyForm initialKey={answerKey} onSave={handleKeySave} />;
+        return <div>Invalid State</div>;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
-      <Header currentPage={currentPage} navigateTo={navigateTo} />
-      <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
+      <Header appState={appState} navigateTo={navigateTo} hasKey={!!answerKey} onEditKey={handleEditKey} />
+      <main className="container mx-auto p-4 md:p-8">
+        {isLoading && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center z-50">
+              <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-400"></div>
+              <p className="text-white text-xl mt-4">AI is grading the sheet...</p>
+            </div>
+        )}
+        {error && (
+            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-md" role="alert">
+                <p className="font-bold">Error</p>
+                <p>{error}</p>
+            </div>
+        )}
         {renderContent()}
       </main>
     </div>

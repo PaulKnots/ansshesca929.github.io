@@ -1,6 +1,6 @@
 {
-  "name": "Answer Sheet Scanner",
-  "description": "An AI-powered answer sheet scanner that uses your device's camera to grade multiple-choice tests instantly. Set an answer key, scan the sheet, and get immediate results.",
+  "name": "AI Answer Sheet Scanner",
+  "description": "An intelligent answer sheet scanner that uses AI to automatically detect, grade, and record multiple-choice test results from an image. Teachers can set an answer key, scan student sheets with their device camera, and get instant feedback with scores and a visual comparison of answers.",
   "requestFramePermissions": [
     "camera"
   ]
